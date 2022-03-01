@@ -11,7 +11,7 @@
 #else
 @import SDWebImage;
 #endif
-
+/*
 #if __has_include("webp/decode.h") && __has_include("webp/encode.h") && __has_include("webp/demux.h") && __has_include("webp/mux.h")
 #import "webp/decode.h"
 #import "webp/encode.h"
@@ -25,9 +25,9 @@
 #else
 @import libwebp;
 #endif
-
+*/
 typedef struct _EncodeParam {
-    WebPMux * _Nullable mux;
+    void * _Nullable mux;
 } EncodeParam;
 
 @protocol WebPEncodeEx
