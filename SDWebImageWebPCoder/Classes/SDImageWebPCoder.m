@@ -1229,4 +1229,74 @@ static float GetFloatValueForKey(NSDictionary * _Nonnull dictionary, NSString * 
     return image;
 }
 
+- (EncodeParam* _Nullable) beginEncodeWith: (SDImageFormat)format {
+    
+    EncodeParam* param = (EncodeParam*)malloc(sizeof(EncodeParam));
+    param->mux = WebPMuxNew();
+    
+    return param;
+}
+
+- (BOOL) addFrameWith:(SDImageFrame *)frame parameter:(EncodeParam *)param options:(SDImageCoderOptions *)options {
+//    printf("[addFrameWith] In\n");
+    double compressionQuality = 1;
+    if (options[SDImageCoderEncodeCompressionQuality]) {
+        compressionQuality = [options[SDImageCoderEncodeCompressionQuality] doubleValue];
+    }
+    CGSize maxPixelSize = CGSizeZero;
+    NSValue *maxPixelSizeValue = options[SDImageCoderEncodeMaxPixelSize];
+    if (maxPixelSizeValue != nil) {
+        maxPixelSize = maxPixelSizeValue.CGSizeValue;
+    }
+    NSUInteger maxFileSize = 0;
+    if (options[SDImageCoderEncodeMaxFileSize]) {
+        maxFileSize = [options[SDImageCoderEncodeMaxFileSize] unsignedIntegerValue];
+    }
+    
+    NSData *webpData = [self sd_encodedWebpDataWithImage:frame.image.CGImage
+                                                 quality:compressionQuality
+                                            maxPixelSize:maxPixelSize
+                                             maxFileSize:maxFileSize
+                                                 options:options];
+    int duration = frame.duration * 1000;
+    WebPMuxFrameInfo webpframe = {
+        .bitstream.bytes = (const uint8_t*)webpData.bytes,
+        .bitstream.size = webpData.length,
+        .duration = duration,
+        .id = WEBP_CHUNK_ANMF,
+        .dispose_method = WEBP_MUX_DISPOSE_BACKGROUND, // each frame will clear canvas
+        .blend_method = WEBP_MUX_NO_BLEND
+    };
+    
+//    printf("[addFrameWith] webpData.length = %lu\n", (unsigned long)webpData.length);
+    if (WebPMuxPushFrame(param->mux, &webpframe, 1) != WEBP_MUX_OK) {
+        return false;
+    }
+//    printf("[addFrameWith] Out\n");
+    return true;
+}
+
+- (NSData* _Nullable) endEncode: (EncodeParam* _Nonnull) param :(int)loopCount {
+
+    WebPMuxAnimParams params = { .bgcolor = 0,
+        .loop_count = loopCount
+    };
+    if (WebPMuxSetAnimationParams(param->mux, &params) != WEBP_MUX_OK) {
+        WebPMuxDelete(param->mux);
+        return nil;
+    }
+    
+    WebPData outputData;
+    WebPMuxError error = WebPMuxAssemble(param->mux, &outputData);
+    WebPMuxDelete(param->mux);
+    if (error != WEBP_MUX_OK) {
+        return nil;
+    }
+    
+    NSData* data = [NSData dataWithBytes:outputData.bytes length:outputData.size];
+    WebPDataClear(&outputData);
+    
+    return data;
+}
+
 @end
